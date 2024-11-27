@@ -26,6 +26,10 @@ done
 pkg=newlib-$ver
 tar=$pkg.tar.gz
 
+CFLAGS_FOR_TARGET="${CFLAGS_FOR_TARGET} -mno-red-zone -mcmodel=large"
+CFLAGS_FOR_TARGET="${CFLAGS_FOR_TARGET} -fomit-frame-pointer"
+CFLAGS_FOR_TARGET="${CFLAGS_FOR_TARGET} -g"
+
 #if we have ;libc.a then skip getting and building libc.a
 if [ ! -e $install/lib/libc.a ]; then
 	if [ ! -e $tar ]; then
@@ -66,13 +70,9 @@ if [ ! -e $install/lib/libc.a ]; then
 	echo Configuring newlib
 	(cd $pkg/newlib && autoreconf)
 	
-	CFLAGS_FOR_TARGET="${CFLAGS_FOR_TARGET} -mno-red-zone -mcmodel=large"
-	CFLAGS_FOR_TARGET="${CFLAGS_FOR_TARGET} -fomit-frame-pointer"
-	CFLAGS_FOR_TARGET="${CFLAGS_FOR_TARGET} -g"
-	export CFLAGS_FOR_TARGET
-	
 	echo configuring
 	rm -rf tmp/*; mkdir -p tmp; cd tmp
+	export CFLAGS_FOR_TARGET
 	../$pkg/configure --target=$target --disable-multilib --prefix=$root/output
 	
 	sed -i "s/TARGET=$target-/TARGET=/g" Makefile
@@ -96,7 +96,7 @@ LDFLAGS="${LDFLAGS} -T app.ld"
 LDFLAGS="${LDFLAGS} -z max-page-size=0x1000"
 
 $CC $CFLAGS -c test.c -o test.o
-$LD $LDFLAGS -o test test.o $install/lib/libc.a
+$LD $LDFLAGS -o test $install/lib/crt0.o test.o $install/lib/libc.a
 $OBJCOPY -O binary test test.app
 
 echo Complete!
