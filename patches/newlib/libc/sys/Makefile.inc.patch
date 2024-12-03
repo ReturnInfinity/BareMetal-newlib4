@@ -1,5 +1,5 @@
 --- newlib-4.4.0.20231231/newlib/libc/sys/Makefile.inc	2024-01-01 04:00:18.000000000 +1100
-+++ newlib-patched/newlib/libc/sys/Makefile.inc	2024-11-21 16:08:59.747545004 +1100
++++ newlib-patched/newlib/libc/sys/Makefile.inc	2024-11-27 14:44:50.578502964 +1100
 @@ -70,3 +70,6 @@
  if HAVE_LIBC_SYS_Z8KSIM_DIR
  include %D%/z8ksim/Makefile.inc

@@ -58,16 +58,15 @@ Run the build script to download, patch and build:
 
 	./build-newlib.sh
 
-After a lengthy compile you should have newlib installed in ./output and `test.app` built.
+After a lengthy compile you should have newlib installed in ./lib, headers in ./include and `test.app` built.
 
 `./output/x86_64-pc-baremetal/lib/libc.a` is the compiled C library that is ready for linking. 
 `./output/x86_64-pc-baremetal/lib/crt0.o` is the starting binary stub for your program.
 
 `./build-newlib.sh` compiles `test.app` as
 
-	gcc -I output/x86_64-pc-baremetal/include/ -c test.c -o test.o
-	ld -T app.ld -o test output/x86_64-pc-baremetal/lib/crt0.o \
-	              test.o output/x86_64-pc-baremetal/lib/libc.a
+	gcc -I include -c test.c -o test.o
+	ld -T app.ld -o test lib/crt0.o test.o lib/libc.a
 	objcopy -O binary test test.app
 
 to run `test.app`, copy it to your `BareMetal-OS/sys` directory and run
@@ -76,4 +75,4 @@ to run `test.app`, copy it to your `BareMetal-OS/sys` directory and run
 
 By default libc.a will be about 6.4 MiB. You can `strip` it to make it a little more compact. `strip` can decrease it to about 1.4 MiB.
 
-	strip --strip-debug output/x86_64-pc-baremetal/lib/libc.a
+	strip --strip-debug lib/libc.a

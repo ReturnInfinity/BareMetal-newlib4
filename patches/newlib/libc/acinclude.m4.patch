@@ -1,5 +1,5 @@
 --- newlib-4.4.0.20231231/newlib/libc/acinclude.m4	2024-01-01 04:00:18.000000000 +1100
-+++ newlib-patched/newlib/libc/acinclude.m4	2024-11-21 17:49:34.960853640 +1100
++++ newlib-patched/newlib/libc/acinclude.m4	2024-11-27 14:44:50.578502964 +1100
 @@ -13,6 +13,7 @@
  dnl We always recur into sys and machine, and let them decide what to do.
  m4_foreach_w([SYS_DIR], [
