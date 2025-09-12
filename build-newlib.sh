@@ -35,16 +35,15 @@ if [ ! -e lib/libc.a ]; then
 		echo Downloading newlib
 		wget ftp://sourceware.org/pub/newlib/$tar
 	fi
-	
+
 	if $diff ; then
 		rm -rf $pkg
 	fi
-	
+
 	if [ ! -e $pkg ]; then
 		echo Extracting newlib
 		tar xf $tar
 	fi
-	
 
 	diffs="$diffs config.sub"
 	diffs="$diffs newlib/configure.host"
@@ -58,25 +57,25 @@ if [ ! -e lib/libc.a ]; then
 			diff -u $pkg/$x newlib-patched/$x >patches/$x.patch || true
 		done
 	fi
-	
+
 	if $patch; then
 		for x in $diffs; do
 			(cd $pkg/`dirname $x`; patch <$root/patches/$x.patch)
 		done
 		cp -r patches/baremetal $pkg/newlib/libc/sys
 	fi
-	
+
 	echo Configuring newlib
 	(cd $pkg/newlib && autoreconf)
-	
+
 	echo configuring
 	rm -rf tmp/*; mkdir -p tmp; cd tmp
 	export CFLAGS_FOR_TARGET
 	../$pkg/configure --target=$target --disable-multilib --prefix=$root/output
-	
+
 	sed -i "s/TARGET=$target-/TARGET=/g" Makefile
 	sed -i "s/WRAPPER) $target-/WRAPPER) /g" Makefile
-	
+
 	echo making
 	make -j
 	make install
@@ -104,7 +103,8 @@ $LD $LDFLAGS -o test lib/crt0.o test.o -lc
 $OBJCOPY -O binary test test.app
 
 if [ -d ../BareMetal-OS ]; then
-	echo running test app
+	echo "Running test app"
+	cp test.app ../BareMetal-OS/sys/
 	cd ../BareMetal-OS; APPS=test.app BMFS_SIZE=16 ./baremetal.sh bnr
 	cd $root
 fi

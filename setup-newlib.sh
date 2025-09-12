@@ -14,6 +14,7 @@ fi
 sudo apt remove autoconf automake
 
 # Download and autoconf-2.69 and automake-1.15.1
+echo "Downloading source..."
 if [ -x "$(command -v curl)" ]; then
 	curl -s -O https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz
 	curl -s -O https://ftp.gnu.org/gnu/automake/automake-1.15.1.tar.gz
@@ -23,10 +24,12 @@ else
 fi
 
 # Extract autoconf-2.69 and automake-1.15.1
-tar -xvzf autoconf-2.69.tar.gz
-tar -xvzf automake-1.15.1.tar.gz
+echo "Extracting source..."
+tar -xzf autoconf-2.69.tar.gz
+tar -xzf automake-1.15.1.tar.gz
 
 # Build and install autoconf-2.69 and automake-1.15.1
+echo "Compiling source..."
 cd autoconf-2.69
 ./configure
 make
@@ -40,3 +43,5 @@ cd ..
 
 # Set path variable
 PATH=$PATH:/usr/local/bin
+
+echo "Done!"
