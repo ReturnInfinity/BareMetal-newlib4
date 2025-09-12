@@ -20,7 +20,6 @@ if [ -x "$(command -v curl)" ]; then
 else
 	wget -q https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz
 	wget -q https://ftp.gnu.org/gnu/automake/automake-1.15.1.tar.gz
-
 fi
 
 # Extract autoconf-2.69 and automake-1.15.1
