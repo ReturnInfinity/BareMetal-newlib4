@@ -6,7 +6,7 @@ opts=`getopt -o v:dn --long newlib-version:,diff,nopatch -- "$@"`
 
 eval set -- "$opts"
 
-ver=4.4.0.20231231  #an ugly version number, but there's no 4.4.0 and this is the latest release
+ver=4.5.0.20241231  #an ugly version number, but there's no 4.5.0 and this is the latest release
 root=`pwd`
 target=x86_64-pc-baremetal
 diff=false
