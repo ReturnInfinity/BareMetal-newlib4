@@ -7,11 +7,11 @@ This port was created by [effbiae](https://github.com/effbiae)
 Introduction
 ------------
 
-This repository contains the files, script, and instructions necessary to build the [newlib](http://sourceware.org/newlib/) C library for BareMetal OS. The latest version of Newlib as of this writing is 4.4.0.20231231
+This repository contains the files, script, and instructions necessary to build the [newlib](http://sourceware.org/newlib/) C library for BareMetal OS. The latest version of Newlib as of this writing is `4.5.0.20241231`
 
 newlib gives BareMetal OS access to the standard set of C library calls like `printf()`, `scanf()`, `memcpy()`, etc.
 
-These instructions are for executing on a 64-bit Linux host. Building on a 64-bit host saves us from the steps of building a cross compiler. The latest distribution of Ubuntu was used while writing this document.
+These instructions are for executing on a Debian-based 64-bit Linux host. Building on a 64-bit host saves us from the steps of building a cross compiler. The latest distribution of Ubuntu was used while writing this document.
 
 
 Building Details
@@ -25,7 +25,7 @@ You also need exact versions of the following:
  * autoconf - 2.69
  * automake - 1.15.1
 
-On a Debian-based system this can be accomplished via the following:
+On a Debian-based system this can be accomplished by running `./setup-newlib.sh` or via the following:
 ```
 # Remove software if already installed
 sudo apt remove autoconf automake
@@ -73,6 +73,6 @@ to run `test.app`, copy it to your `BareMetal-OS/sys` directory and run
 
 	APPS=test.app BMFS_SIZE=32 ./baremetal.sh bnr
 
-By default libc.a will be about 6.4 MiB. You can `strip` it to make it a little more compact. `strip` can decrease it to about 1.4 MiB.
+By default libc.a will be about 6.4 MiB. You can `strip` it to make it a little more compact. `strip` can decrease it to about 1.8 MiB.
 
 	strip --strip-debug lib/libc.a
