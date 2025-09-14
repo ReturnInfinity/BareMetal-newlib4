@@ -3,11 +3,11 @@
 set -e
 
 # Confirmation prompt
-echo "This script will remove the currently installed autoconf and automake, download and install autoconf-2.69 and automake-1.15.1, and adjust the path variable. sudo will be used. Are you sure? Type 'yes' to continue."
-read -r response
+echo "This script will remove the currently installed autoconf and automake, download and install autoconf-2.69 and automake-1.15.1, and adjust the path variable. sudo will be used. Are you sure?"
+read -p "Enter 'yes' to continue: " -r response
 if [ "$response" != "yes" ]; then
-    echo "Aborting..."
-    exit 1
+	echo "Aborting..."
+	exit 1
 fi
 
 # Remove autoconf and automake
