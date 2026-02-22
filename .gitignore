@@ -58,3 +58,5 @@ CFLAGS
 LDFLAGS
 newlib*.tar.gz
 test
+include/
+lib/
