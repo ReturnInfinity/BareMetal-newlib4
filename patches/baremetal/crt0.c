@@ -1,5 +1,4 @@
 #include <stdio.h> // fflush()
-#include <stdlib.h> // EXIT_FAILURE
 
 extern int main(int argc, char *argv[]);
 
@@ -12,9 +11,9 @@ int _start()
 {
 	zero_bss();
 
-	char *argv[2]={".",0};	
+	char *argv[2]={".",0};
 	int retval = main(1, argv);
-	
+
 	fflush(stdout);
 
 	return retval;

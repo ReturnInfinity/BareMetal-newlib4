@@ -12,7 +12,6 @@
 #include <sys/times.h>
 #include <sys/errno.h>
 #include <sys/time.h>
-#include <stdio.h>
 #include <errno.h>
 
 unsigned char inportbyte(unsigned int port);
@@ -23,8 +22,7 @@ void outportbyte(unsigned int port,unsigned char value);
 // exit -- Exit a program without cleaning up files
 void _exit(int val)
 {
-	unsigned int reset = 256;
-	asm volatile ("call *0x00100068" : : "d"(reset));
+
 }
 
 // execve -- Transfer control to a new process
@@ -183,9 +181,9 @@ int _unlink(char *name)
 caddr_t _sbrk(int incr)
 {
 //	asm volatile ("xchg %bx, %bx"); // Debug
-	extern caddr_t __bss_stop; /* Defined by the linker */
-	static caddr_t *heap_end;
-	caddr_t *prev_heap_end;
+	extern char __bss_stop; /* Defined by the linker */
+	static char *heap_end;
+	char *prev_heap_end;
 //	write (2, "sbrk\n", 5);
 	if (heap_end == 0)
 	{
@@ -241,8 +239,7 @@ int _gettimeofday(struct timeval *p, void *z)
 // times - Timing information for current process.
 clock_t _times(struct tms *buf){
 	// get current process time
-	unsigned long long proc_time;
-	asm volatile ("call *0x00100060" : "=a"(proc_time));
+	unsigned long long proc_time = 1;
 
 	/*
 	 * Process time is assumed to be the CPU time charged for
