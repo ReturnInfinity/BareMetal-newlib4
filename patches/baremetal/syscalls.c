@@ -202,35 +202,59 @@ caddr_t _sbrk(int incr)
 
 // --- Other ---
 
+// Read a BCD value from the CMOS RTC
+static int cmos_read_bcd(unsigned char reg)
+{
+	unsigned char bcd;
+	outportbyte(0x70, reg);
+	bcd = inportbyte(0x71);
+	return ((bcd & 0xF0) >> 4) * 10 + (bcd & 0x0F);
+}
+
+// Convert broken-down UTC time to seconds since Unix epoch.
+// This avoids calling mktime() which depends on malloc/timezone.
+static long long epoch_from_utc(int year, int mon, int mday, int hour, int min, int sec)
+{
+	// Days in each month (non-leap year)
+	static const int mdays[12] = { 31,28,31,30,31,30,31,31,30,31,30,31 };
+	long long days = 0;
+	int y, m;
+
+	// Sum days for complete years since 1970
+	for (y = 1970; y < year; y++)
+	{
+		days += 365;
+		if ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0)
+			days += 1;
+	}
+
+	// Sum days for complete months in the current year
+	for (m = 0; m < mon - 1; m++)
+	{
+		days += mdays[m];
+		if (m == 1 && ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0))
+			days += 1;
+	}
+
+	// Add remaining days in the current month
+	days += mday - 1;
+
+	return days * 86400LL + hour * 3600LL + min * 60LL + sec;
+}
+
 // gettimeofday --
 int _gettimeofday(struct timeval *p, void *z)
 {
-	unsigned char bcd;
-	struct tm t;
+	int year, mon, mday, hour, min, sec;
 
-//	outportbyte(0x70, 0x32); // Century
-//	bcd = inportbyte(0x71);
-	outportbyte(0x70, 0x09); // Year
-	bcd = inportbyte(0x71);
-	t.tm_year = 100 + ((bcd & 0xF0) >> 1) + ((bcd & 0xF0) >> 3) + (bcd & 0x0F); // Years since 1900
-	outportbyte(0x70, 0x08); // Month
-	bcd = inportbyte(0x71);
-	t.tm_mon = (((bcd & 0xF0) >> 1) + ((bcd & 0xF0) >> 3) + (bcd & 0x0F)) - 1; // Months since January
-	outportbyte(0x70, 0x07); // Day
-	bcd = inportbyte(0x71);
-	t.tm_mday = ((bcd & 0xF0) >> 1) + ((bcd & 0xF0) >> 3) + (bcd & 0x0F);
-	outportbyte(0x70, 0x04); // Hour
-	bcd = inportbyte(0x71);
-	t.tm_hour = ((bcd & 0xF0) >> 1) + ((bcd & 0xF0) >> 3) + (bcd & 0x0F);
-	outportbyte(0x70, 0x02); // Minute
-	bcd = inportbyte(0x71);
-	t.tm_min = ((bcd & 0xF0) >> 1) + ((bcd & 0xF0) >> 3) + (bcd & 0x0F);
-	outportbyte(0x70, 0x00); // Second
-	bcd = inportbyte(0x71);
-	t.tm_sec = ((bcd & 0xF0) >> 1) + ((bcd & 0xF0) >> 3) + (bcd & 0x0F);
-	t.tm_isdst = -1;
+	year = 2000 + cmos_read_bcd(0x09);
+	mon  = cmos_read_bcd(0x08);
+	mday = cmos_read_bcd(0x07);
+	hour = cmos_read_bcd(0x04);
+	min  = cmos_read_bcd(0x02);
+	sec  = cmos_read_bcd(0x00);
 
-	p->tv_sec = (long) mktime(&t);
+	p->tv_sec = (long) epoch_from_utc(year, mon, mday, hour, min, sec);
 	p->tv_usec = 0;
 
 	return 0;
