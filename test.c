@@ -14,7 +14,11 @@ int main()
 	local = localtime(&t);
 	printf("Local time and date: %s\n", asctime(local));
 
-	printf("%s %d", "printf-example:", 1234);
+	printf("%s %d\n", "printf-example:", 1234);
+
+	printf("\ntype an integer: ");
+	scanf("%d", &i);
+	printf("\nscanf-example: %d\n", i);
 
 	return 0;
 }

@@ -116,12 +116,23 @@ int _read(int file, char *ptr, int len)
 {
 	if (file == 0) // STDIN
 	{
-		asm volatile ("call *0x00100010" : "=c"(len) : "c"(len), "D"(ptr));
-		ptr[len] = '\n'; // BareMetal does not add a newline after keyboard input ...
-		ptr[len+1] = 0; // ... but C expects it.
-		len+=1;
+		int count = 0;
+		while (count < len)
+		{
+			unsigned char chr;
+			asm volatile ("call *0x00100010" : "=a" (chr));
+			if (chr == 0) // No character available, keep polling
+				continue;
+			ptr[count++] = chr;
+			if (chr == 0x1C || chr == '\r' || chr == '\n')
+			{
+				ptr[count - 1] = '\n'; // Normalize to newline
+				break;
+			}
+		}
+		return count;
 	}
-	return len;
+	return -1;
 }
 
 // write - Write to a file
