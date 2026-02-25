@@ -1,6 +1,6 @@
 // ============================================================================
 // BareMetal -- a 64-bit OS written in Assembly for x86-64 systems
-// Copyright (C) 2008-2016 Return Infinity -- see LICENSE.TXT
+// Copyright (C) 2008-2026 Return Infinity -- see LICENSE.TXT
 //
 // Syscalls glue for Newlib
 // ============================================================================
@@ -117,13 +117,29 @@ int _read(int file, char *ptr, int len)
 	if (file == 0) // STDIN
 	{
 		int count = 0;
+		char str2[2];
+		char *ptr2 = str2;
 		while (count < len)
 		{
 			unsigned char chr;
 			asm volatile ("call *0x00100010" : "=a" (chr));
+			// check for backspace
+			if (chr == 0x0E && count > 0)
+			{
+				ptr[--count] = 0;
+				ptr2[0] = 0x0E;
+				asm volatile ("call *0x00100018" : : "S"(ptr2), "c"(1)); // display character
+				continue;
+			}
+			else if (chr == 0x0E && count == 0)
+			{
+				continue;
+			}
 			if (chr == 0) // No character available, keep polling
 				continue;
 			ptr[count++] = chr;
+			ptr2[0] = chr;
+			asm volatile ("call *0x00100018" : : "S"(ptr2), "c"(1)); // display character
 			if (chr == 0x1C || chr == '\r' || chr == '\n')
 			{
 				ptr[count - 1] = '\n'; // Normalize to newline
