@@ -301,7 +301,8 @@ int _gettimeofday(struct timeval *p, void *z)
 	sec  = cmos_read_bcd(0x00);
 
 	p->tv_sec = (long) epoch_from_utc(year, mon, mday, hour, min, sec);
-	p->tv_usec = 0;
+	unsigned long long ns = b_system(TIMECOUNTER, 0, 0);
+	p->tv_usec = (long)((ns / 1000ULL) % 1000000ULL);
 
 	return 0;
 }
