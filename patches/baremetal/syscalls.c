@@ -22,7 +22,7 @@ void outportbyte(unsigned int port,unsigned char value);
 // exit -- Exit a program without cleaning up files
 void _exit(int val)
 {
-
+		__asm__ volatile ("nop");
 }
 
 // execve -- Transfer control to a new process
