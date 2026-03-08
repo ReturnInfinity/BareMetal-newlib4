@@ -6,16 +6,34 @@
 // ============================================================================
 
 
+// Enable POSIX clock functions (clock_gettime) and CLOCK_MONOTONIC in newlib's <time.h>
+#define _POSIX_TIMERS 1
+#define _POSIX_MONOTONIC_CLOCK 1
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/fcntl.h>
 #include <sys/times.h>
 #include <sys/errno.h>
 #include <sys/time.h>
+#include <time.h>
 #include <errno.h>
+
+// BareMetal b_system function indices
+#define TIMECOUNTER 0x00
 
 unsigned char inportbyte(unsigned int port);
 void outportbyte(unsigned int port,unsigned char value);
+
+// b_system -- Call BareMetal system functions
+// IN:  RCX = Function, RAX = Variable 1, RDX = Variable 2
+// OUT: RAX = Result
+static unsigned long long b_system(unsigned long long function, unsigned long long var1, unsigned long long var2)
+{
+	unsigned long long result;
+	asm volatile ("call *0x00100040" : "=a"(result) : "c"(function), "a"(var1), "d"(var2));
+	return result;
+}
 
 // --- Process Control ---
 
@@ -285,6 +303,35 @@ int _gettimeofday(struct timeval *p, void *z)
 	p->tv_usec = 0;
 
 	return 0;
+}
+
+// clock_gettime -- Get time from a specified clock
+int clock_gettime(clockid_t clock_id, struct timespec *tp)
+{
+	if (tp == 0)
+	{
+		errno = EFAULT;
+		return -1;
+	}
+
+	if (clock_id == CLOCK_MONOTONIC)
+	{
+		unsigned long long ns = b_system(TIMECOUNTER, 0, 0);
+		tp->tv_sec = (time_t)(ns / 1000000000ULL);
+		tp->tv_nsec = (long)(ns % 1000000000ULL);
+		return 0;
+	}
+	else if (clock_id == CLOCK_REALTIME)
+	{
+		struct timeval tv;
+		_gettimeofday(&tv, 0);
+		tp->tv_sec = tv.tv_sec;
+		tp->tv_nsec = tv.tv_usec * 1000L;
+		return 0;
+	}
+
+	errno = EINVAL;
+	return -1;
 }
 
 // times - Timing information for current process.

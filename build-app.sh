@@ -9,7 +9,7 @@ CC=gcc
 LD=ld
 OBJCOPY=objcopy
 
-CFLAGS="${CFLAGS_FOR_TARGET}  -fno-stack-protector -I $root/include"
+CFLAGS="${CFLAGS_FOR_TARGET}  -fno-stack-protector -D_POSIX_TIMERS=1 -D_POSIX_MONOTONIC_CLOCK=1 -I $root/include"
 LDFLAGS="${LDFLAGS} -T $root/app.ld -z max-page-size=0x1000 -L $root/lib"
 
 echo "$CFLAGS" >CFLAGS

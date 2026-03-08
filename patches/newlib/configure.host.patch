@@ -10,12 +10,13 @@
  esac
  
  # Host specific flag settings -- usually for features that are not
-@@ -877,6 +880,9 @@
+@@ -877,6 +880,10 @@
    z8k-*-*)
  	syscall_dir=syscalls
  	;;
 +  x86_64-*-baremetal*)
 +	syscall_dir=syscalls
++	newlib_cflags="${newlib_cflags} -D_POSIX_TIMERS=1 -D_POSIX_MONOTONIC_CLOCK=1"
 +	;;
    *)
  	newlib_cflags="${newlib_cflags} -DMISSING_SYSCALL_NAMES"
