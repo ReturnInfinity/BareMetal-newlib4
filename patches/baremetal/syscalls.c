@@ -21,6 +21,7 @@
 
 // BareMetal b_system function indices
 #define TIMECOUNTER 0x00
+#define DELAY 0x72
 
 unsigned char inportbyte(unsigned int port);
 void outportbyte(unsigned int port,unsigned char value);
@@ -332,6 +333,13 @@ int clock_gettime(clockid_t clock_id, struct timespec *tp)
 
 	errno = EINVAL;
 	return -1;
+}
+
+// usleep -- Suspend execution for microsecond intervals
+int usleep(unsigned int usec)
+{
+	b_system(DELAY, (unsigned long long)usec, 0);
+	return 0;
 }
 
 // times - Timing information for current process.
