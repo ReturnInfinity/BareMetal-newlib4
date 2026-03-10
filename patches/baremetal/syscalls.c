@@ -248,13 +248,23 @@ caddr_t _sbrk(int incr)
 
 // --- Other ---
 
-// Read a BCD value from the CMOS RTC
-static int cmos_read_bcd(unsigned char reg)
+// Read a raw byte from a CMOS RTC register
+static unsigned char cmos_read_reg(unsigned char reg)
 {
-	unsigned char bcd;
 	outportbyte(0x70, reg);
-	bcd = inportbyte(0x71);
-	return ((bcd & 0xF0) >> 4) * 10 + (bcd & 0x0F);
+	return inportbyte(0x71);
+}
+
+// Return non-zero if the RTC update-in-progress flag is set
+static int cmos_uip(void)
+{
+	return cmos_read_reg(0x0A) & 0x80;
+}
+
+// Convert a BCD-encoded byte to binary
+static int bcd_to_bin(unsigned char val)
+{
+	return ((val & 0xF0) >> 4) * 10 + (val & 0x0F);
 }
 
 // Convert broken-down UTC time to seconds since Unix epoch.
@@ -291,16 +301,79 @@ static long long epoch_from_utc(int year, int mon, int mday, int hour, int min, 
 // gettimeofday --
 int _gettimeofday(struct timeval *p, void *z)
 {
-	int year, mon, mday, hour, min, sec;
+	unsigned char sec, min, hour, mday, mon, year, status_b;
+	unsigned char last_sec, last_min, last_hour, last_mday, last_mon, last_year;
 
-	year = 2000 + cmos_read_bcd(0x09);
-	mon  = cmos_read_bcd(0x08);
-	mday = cmos_read_bcd(0x07);
-	hour = cmos_read_bcd(0x04);
-	min  = cmos_read_bcd(0x02);
-	sec  = cmos_read_bcd(0x00);
+	// Wait until an update is NOT in progress before the first read.
+	// The UIP flag is set for up to ~244 us before each update.
+	while (cmos_uip())
+		;
 
-	p->tv_sec = (long) epoch_from_utc(year, mon, mday, hour, min, sec);
+	sec  = cmos_read_reg(0x00);
+	min  = cmos_read_reg(0x02);
+	hour = cmos_read_reg(0x04);
+	mday = cmos_read_reg(0x07);
+	mon  = cmos_read_reg(0x08);
+	year = cmos_read_reg(0x09);
+
+	// Double-read loop: re-read until two consecutive reads match,
+	// guaranteeing we did not read mid-update.
+	do {
+		last_sec  = sec;
+		last_min  = min;
+		last_hour = hour;
+		last_mday = mday;
+		last_mon  = mon;
+		last_year = year;
+
+		while (cmos_uip())
+			;
+
+		sec  = cmos_read_reg(0x00);
+		min  = cmos_read_reg(0x02);
+		hour = cmos_read_reg(0x04);
+		mday = cmos_read_reg(0x07);
+		mon  = cmos_read_reg(0x08);
+		year = cmos_read_reg(0x09);
+	} while (sec != last_sec || min != last_min || hour != last_hour ||
+		 mday != last_mday || mon != last_mon || year != last_year);
+
+	// Read status register B to determine encoding and hour format
+	status_b = cmos_read_reg(0x0B);
+
+	// Convert from BCD to binary if the RTC is in BCD mode (bit 2 clear)
+	if (!(status_b & 0x04))
+	{
+		sec  = bcd_to_bin(sec);
+		min  = bcd_to_bin(min);
+		hour = bcd_to_bin(hour & 0x7F) | (hour & 0x80); // preserve PM flag
+		mday = bcd_to_bin(mday);
+		mon  = bcd_to_bin(mon);
+		year = bcd_to_bin(year);
+	}
+
+	// Handle 12-hour format (bit 1 clear = 12-hour mode)
+	if (!(status_b & 0x02))
+	{
+		int pm = hour & 0x80;
+		hour = hour & 0x7F;
+		if (hour == 12)
+			hour = 0;        // 12 AM/PM -> 0 base
+		if (pm)
+			hour += 12;      // PM -> add 12
+	}
+
+	int iyear = 2000 + (int)year;
+	int imon  = (int)mon;
+	int imday = (int)mday;
+	int ihour = (int)hour;
+	int imin  = (int)min;
+	int isec  = (int)sec;
+
+	p->tv_sec = (long) epoch_from_utc(iyear, imon, imday, ihour, imin, isec);
+	// The RTC has only 1-second granularity; we cannot derive a meaningful
+	// sub-second value, so set tv_usec to zero.
+//	p->tv_usec = 0;
 	unsigned long long ns = b_system(TIMECOUNTER, 0, 0);
 	p->tv_usec = (long)((ns / 1000ULL) % 1000000ULL);
 
