@@ -1,10 +1,14 @@
 // ============================================================================
 // BareMetal -- a 64-bit OS written in Assembly for x86-64 systems
-// Copyright (C) 2008-2016 Return Infinity -- see LICENSE.TXT
+// Copyright (C) 2008-2026 Return Infinity -- see LICENSE.TXT
 //
 // Syscalls glue for Newlib
 // ============================================================================
 
+
+// Enable POSIX clock functions (clock_gettime) and CLOCK_MONOTONIC in newlib's <time.h>
+#define _POSIX_TIMERS 1
+#define _POSIX_MONOTONIC_CLOCK 1
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -12,19 +16,32 @@
 #include <sys/times.h>
 #include <sys/errno.h>
 #include <sys/time.h>
-#include <stdio.h>
+#include <time.h>
 #include <errno.h>
+
+// BareMetal b_system function indices
+#define TIMECOUNTER 0x00
+#define DELAY 0x72
 
 unsigned char inportbyte(unsigned int port);
 void outportbyte(unsigned int port,unsigned char value);
+
+// b_system -- Call BareMetal system functions
+// IN:  RCX = Function, RAX = Variable 1, RDX = Variable 2
+// OUT: RAX = Result
+static unsigned long long b_system(unsigned long long function, unsigned long long var1, unsigned long long var2)
+{
+	unsigned long long result;
+	asm volatile ("call *0x00100040" : "=a"(result) : "c"(function), "a"(var1), "d"(var2));
+	return result;
+}
 
 // --- Process Control ---
 
 // exit -- Exit a program without cleaning up files
 void _exit(int val)
 {
-	unsigned int reset = 256;
-	asm volatile ("call *0x00100068" : : "d"(reset));
+		__asm__ volatile ("nop");
 }
 
 // execve -- Transfer control to a new process
@@ -118,12 +135,39 @@ int _read(int file, char *ptr, int len)
 {
 	if (file == 0) // STDIN
 	{
-		asm volatile ("call *0x00100010" : "=c"(len) : "c"(len), "D"(ptr));
-		ptr[len] = '\n'; // BareMetal does not add a newline after keyboard input ...
-		ptr[len+1] = 0; // ... but C expects it.
-		len+=1;
+		int count = 0;
+		char str2[2];
+		char *ptr2 = str2;
+		while (count < len)
+		{
+			unsigned char chr;
+			asm volatile ("call *0x00100010" : "=a" (chr));
+			// check for backspace
+			if (chr == 0x0E && count > 0)
+			{
+				ptr[--count] = 0;
+				ptr2[0] = 0x0E;
+				asm volatile ("call *0x00100018" : : "S"(ptr2), "c"(1)); // display character
+				continue;
+			}
+			else if (chr == 0x0E && count == 0)
+			{
+				continue;
+			}
+			if (chr == 0) // No character available, keep polling
+				continue;
+			ptr[count++] = chr;
+			ptr2[0] = chr;
+			asm volatile ("call *0x00100018" : : "S"(ptr2), "c"(1)); // display character
+			if (chr == 0x1C || chr == '\r' || chr == '\n')
+			{
+				ptr[count - 1] = '\n'; // Normalize to newline
+				break;
+			}
+		}
+		return count;
 	}
-	return len;
+	return -1;
 }
 
 // write - Write to a file
@@ -183,9 +227,9 @@ int _unlink(char *name)
 caddr_t _sbrk(int incr)
 {
 //	asm volatile ("xchg %bx, %bx"); // Debug
-	extern caddr_t __bss_stop; /* Defined by the linker */
-	static caddr_t *heap_end;
-	caddr_t *prev_heap_end;
+	extern char __bss_stop; /* Defined by the linker */
+	static char *heap_end;
+	char *prev_heap_end;
 //	write (2, "sbrk\n", 5);
 	if (heap_end == 0)
 	{
@@ -204,45 +248,178 @@ caddr_t _sbrk(int incr)
 
 // --- Other ---
 
+// Read a raw byte from a CMOS RTC register
+static unsigned char cmos_read_reg(unsigned char reg)
+{
+	outportbyte(0x70, reg);
+	return inportbyte(0x71);
+}
+
+// Return non-zero if the RTC update-in-progress flag is set
+static int cmos_uip(void)
+{
+	return cmos_read_reg(0x0A) & 0x80;
+}
+
+// Convert a BCD-encoded byte to binary
+static int bcd_to_bin(unsigned char val)
+{
+	return ((val & 0xF0) >> 4) * 10 + (val & 0x0F);
+}
+
+// Convert broken-down UTC time to seconds since Unix epoch.
+// This avoids calling mktime() which depends on malloc/timezone.
+static long long epoch_from_utc(int year, int mon, int mday, int hour, int min, int sec)
+{
+	// Days in each month (non-leap year)
+	static const int mdays[12] = { 31,28,31,30,31,30,31,31,30,31,30,31 };
+	long long days = 0;
+	int y, m;
+
+	// Sum days for complete years since 1970
+	for (y = 1970; y < year; y++)
+	{
+		days += 365;
+		if ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0)
+			days += 1;
+	}
+
+	// Sum days for complete months in the current year
+	for (m = 0; m < mon - 1; m++)
+	{
+		days += mdays[m];
+		if (m == 1 && ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0))
+			days += 1;
+	}
+
+	// Add remaining days in the current month
+	days += mday - 1;
+
+	return days * 86400LL + hour * 3600LL + min * 60LL + sec;
+}
+
 // gettimeofday --
 int _gettimeofday(struct timeval *p, void *z)
 {
-	unsigned char bcd;
-	struct tm t;
+	unsigned char sec, min, hour, mday, mon, year, status_b;
+	unsigned char last_sec, last_min, last_hour, last_mday, last_mon, last_year;
 
-//	outportbyte(0x70, 0x32); // Century
-//	bcd = inportbyte(0x71);
-	outportbyte(0x70, 0x09); // Year
-	bcd = inportbyte(0x71);
-	t.tm_year = 100 + ((bcd & 0xF0) >> 1) + ((bcd & 0xF0) >> 3) + (bcd & 0x0F); // Years since 1900
-	outportbyte(0x70, 0x08); // Month
-	bcd = inportbyte(0x71);
-	t.tm_mon = (((bcd & 0xF0) >> 1) + ((bcd & 0xF0) >> 3) + (bcd & 0x0F)) - 1; // Months since January
-	outportbyte(0x70, 0x07); // Day
-	bcd = inportbyte(0x71);
-	t.tm_mday = ((bcd & 0xF0) >> 1) + ((bcd & 0xF0) >> 3) + (bcd & 0x0F);
-	outportbyte(0x70, 0x04); // Hour
-	bcd = inportbyte(0x71);
-	t.tm_hour = ((bcd & 0xF0) >> 1) + ((bcd & 0xF0) >> 3) + (bcd & 0x0F);
-	outportbyte(0x70, 0x02); // Minute
-	bcd = inportbyte(0x71);
-	t.tm_min = ((bcd & 0xF0) >> 1) + ((bcd & 0xF0) >> 3) + (bcd & 0x0F);
-	outportbyte(0x70, 0x00); // Second
-	bcd = inportbyte(0x71);
-	t.tm_sec = ((bcd & 0xF0) >> 1) + ((bcd & 0xF0) >> 3) + (bcd & 0x0F);
-	t.tm_isdst = -1;
+	// Wait until an update is NOT in progress before the first read.
+	// The UIP flag is set for up to ~244 us before each update.
+	while (cmos_uip())
+		;
 
-	p->tv_sec = (long) mktime(&t);
-	p->tv_usec = 0;
+	sec  = cmos_read_reg(0x00);
+	min  = cmos_read_reg(0x02);
+	hour = cmos_read_reg(0x04);
+	mday = cmos_read_reg(0x07);
+	mon  = cmos_read_reg(0x08);
+	year = cmos_read_reg(0x09);
 
+	// Double-read loop: re-read until two consecutive reads match,
+	// guaranteeing we did not read mid-update.
+	do {
+		last_sec  = sec;
+		last_min  = min;
+		last_hour = hour;
+		last_mday = mday;
+		last_mon  = mon;
+		last_year = year;
+
+		while (cmos_uip())
+			;
+
+		sec  = cmos_read_reg(0x00);
+		min  = cmos_read_reg(0x02);
+		hour = cmos_read_reg(0x04);
+		mday = cmos_read_reg(0x07);
+		mon  = cmos_read_reg(0x08);
+		year = cmos_read_reg(0x09);
+	} while (sec != last_sec || min != last_min || hour != last_hour ||
+		 mday != last_mday || mon != last_mon || year != last_year);
+
+	// Read status register B to determine encoding and hour format
+	status_b = cmos_read_reg(0x0B);
+
+	// Convert from BCD to binary if the RTC is in BCD mode (bit 2 clear)
+	if (!(status_b & 0x04))
+	{
+		sec  = bcd_to_bin(sec);
+		min  = bcd_to_bin(min);
+		hour = bcd_to_bin(hour & 0x7F) | (hour & 0x80); // preserve PM flag
+		mday = bcd_to_bin(mday);
+		mon  = bcd_to_bin(mon);
+		year = bcd_to_bin(year);
+	}
+
+	// Handle 12-hour format (bit 1 clear = 12-hour mode)
+	if (!(status_b & 0x02))
+	{
+		int pm = hour & 0x80;
+		hour = hour & 0x7F;
+		if (hour == 12)
+			hour = 0;        // 12 AM/PM -> 0 base
+		if (pm)
+			hour += 12;      // PM -> add 12
+	}
+
+	int iyear = 2000 + (int)year;
+	int imon  = (int)mon;
+	int imday = (int)mday;
+	int ihour = (int)hour;
+	int imin  = (int)min;
+	int isec  = (int)sec;
+
+	p->tv_sec = (long) epoch_from_utc(iyear, imon, imday, ihour, imin, isec);
+	// The RTC has only 1-second granularity; we cannot derive a meaningful
+	// sub-second value, so set tv_usec to zero.
+//	p->tv_usec = 0;
+	unsigned long long ns = b_system(TIMECOUNTER, 0, 0);
+	p->tv_usec = (long)((ns / 1000ULL) % 1000000ULL);
+
+	return 0;
+}
+
+// clock_gettime -- Get time from a specified clock
+int clock_gettime(clockid_t clock_id, struct timespec *tp)
+{
+	if (tp == 0)
+	{
+		errno = EFAULT;
+		return -1;
+	}
+
+	if (clock_id == CLOCK_MONOTONIC)
+	{
+		unsigned long long ns = b_system(TIMECOUNTER, 0, 0);
+		tp->tv_sec = (time_t)(ns / 1000000000ULL);
+		tp->tv_nsec = (long)(ns % 1000000000ULL);
+		return 0;
+	}
+	else if (clock_id == CLOCK_REALTIME)
+	{
+		struct timeval tv;
+		_gettimeofday(&tv, 0);
+		tp->tv_sec = tv.tv_sec;
+		tp->tv_nsec = tv.tv_usec * 1000L;
+		return 0;
+	}
+
+	errno = EINVAL;
+	return -1;
+}
+
+// usleep -- Suspend execution for microsecond intervals
+int usleep(unsigned int usec)
+{
+	b_system(DELAY, (unsigned long long)usec, 0);
 	return 0;
 }
 
 // times - Timing information for current process.
 clock_t _times(struct tms *buf){
 	// get current process time
-	unsigned long long proc_time;
-	asm volatile ("call *0x00100060" : "=a"(proc_time));
+	unsigned long long proc_time = 1;
 
 	/*
 	 * Process time is assumed to be the CPU time charged for

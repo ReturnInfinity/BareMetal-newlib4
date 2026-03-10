@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <time.h>
 
 int main()
@@ -16,6 +15,10 @@ int main()
 	printf("Local time and date: %s\n", asctime(local));
 
 	printf("%s %d\n", "printf-example:", 1234);
+
+	printf("\ntype an integer: ");
+	scanf("%d", &i);
+	printf("\nscanf-example: %d\n", i);
 
 	return 0;
 }
