@@ -7,7 +7,7 @@ This port was created by [effbiae](https://github.com/effbiae)
 Introduction
 ------------
 
-This repository contains the files, script, and instructions necessary to build the [newlib](http://sourceware.org/newlib/) C library for BareMetal OS. The latest version of Newlib as of this writing is `4.5.0.20241231`
+This repository contains the files, script, and instructions necessary to build the [newlib](http://sourceware.org/newlib/) C library for BareMetal OS. The latest version of Newlib as of this writing is `4.6.0.20260123`
 
 newlib gives BareMetal OS access to the standard set of C library calls like `printf()`, `scanf()`, `memcpy()`, etc.
 
