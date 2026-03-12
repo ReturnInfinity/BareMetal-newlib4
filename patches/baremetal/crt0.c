@@ -1,3 +1,5 @@
+#pragma GCC optimize("O0")
+
 #include <stdio.h> // fflush()
 #include <time.h>
 
